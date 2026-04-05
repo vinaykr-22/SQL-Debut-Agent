@@ -4,9 +4,11 @@ FastAPI server exposing SQLQueryDebugEnv over HTTP.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from environment import SQLQueryDebugEnv, SQLDebugAction
@@ -18,6 +20,7 @@ app = FastAPI(
 )
 
 env = SQLQueryDebugEnv()
+UI_PATH = Path(__file__).parent / "ui" / "index.html"
 
 
 class ResetRequest(BaseModel):
@@ -29,8 +32,13 @@ class StepRequest(BaseModel):
 
 
 @app.get("/")
-def root() -> dict[str, str]:
-    return {"message": "SQL Query Debug Agent Env", "docs": "/docs"}
+def root() -> FileResponse:
+    return FileResponse(UI_PATH)
+
+
+@app.get("/ui")
+def ui() -> FileResponse:
+    return FileResponse(UI_PATH)
 
 
 @app.get("/health")

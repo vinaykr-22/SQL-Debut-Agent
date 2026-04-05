@@ -90,6 +90,14 @@ uvicorn server:app --host 0.0.0.0 --port 7860
 python server.py
 ```
 
+The root URL now serves a built-in user interface for manual testing:
+
+```bash
+http://localhost:7860/
+```
+
+OpenEnv API endpoints remain unchanged at /health, /metadata, /schema, /reset, /step, and /state.
+
 3. Test endpoints
 
 ```bash

@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SQL Query Debug Agent</title>
+  <style>
+    :root {
+      --bg-1: #08131f;
+      --bg-2: #0f2b42;
+      --card: #0f1d2c;
+      --card-border: #1e3550;
+      --text: #ecf4ff;
+      --muted: #b4c8dd;
+      --accent: #1ec8a5;
+      --warn: #ffb454;
+      --danger: #ff6b6b;
+      --ok: #41d17a;
+      --mono: "Cascadia Code", "Consolas", "Courier New", monospace;
+      --sans: "Segoe UI", "Trebuchet MS", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      color: var(--text);
+      background:
+        radial-gradient(circle at 80% 10%, rgba(30, 200, 165, 0.12), transparent 35%),
+        radial-gradient(circle at 20% 0%, rgba(65, 120, 255, 0.15), transparent 30%),
+        linear-gradient(130deg, var(--bg-1), var(--bg-2));
+      min-height: 100vh;
+    }
+
+    .wrap {
+      width: min(1120px, 94vw);
+      margin: 0 auto;
+      padding: 28px 0 40px;
+      animation: rise 0.45s ease-out;
+    }
+
+    @keyframes rise {
+      from { transform: translateY(8px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .hero {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(1.35rem, 2.2vw, 2.1rem);
+      letter-spacing: 0.02em;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--card-border);
+      background: rgba(15, 29, 44, 0.8);
+      border-radius: 999px;
+      padding: 8px 14px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    @media (min-width: 1020px) {
+      .grid {
+        grid-template-columns: 1.1fr 1fr;
+      }
+    }
+
+    .card {
+      background: linear-gradient(170deg, rgba(15, 29, 44, 0.95), rgba(13, 24, 38, 0.95));
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    }
+
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 1.05rem;
+      color: #d2e8ff;
+    }
+
+    .stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .row {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 620px) {
+      .row.split {
+        grid-template-columns: 1fr auto auto;
+        align-items: end;
+      }
+    }
+
+    label {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    input, select, textarea, button {
+      font: inherit;
+      border-radius: 10px;
+      border: 1px solid #294763;
+      background: #0a1623;
+      color: var(--text);
+      padding: 10px 12px;
+    }
+
+    textarea {
+      min-height: 150px;
+      resize: vertical;
+      font-family: var(--mono);
+      line-height: 1.45;
+      tab-size: 2;
+    }
+
+    button {
+      cursor: pointer;
+      border: 1px solid rgba(30, 200, 165, 0.6);
+      background: linear-gradient(135deg, #149f84, #21c8a8);
+      color: #08131f;
+      font-weight: 700;
+      transition: transform 0.1s ease, filter 0.2s ease;
+    }
+
+    button:hover { filter: brightness(1.08); }
+    button:active { transform: translateY(1px); }
+
+    .ghost {
+      background: #0b1827;
+      color: #d6e8fb;
+      border: 1px solid #2e4e6f;
+      font-weight: 600;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    .status {
+      margin-top: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-size: 0.85rem;
+      border: 1px solid #2f4965;
+      background: rgba(11, 24, 39, 0.8);
+    }
+
+    .status.ok { border-color: rgba(65, 209, 122, 0.5); color: var(--ok); }
+    .status.warn { border-color: rgba(255, 180, 84, 0.5); color: var(--warn); }
+    .status.err { border-color: rgba(255, 107, 107, 0.5); color: var(--danger); }
+
+    .pane {
+      font-family: var(--mono);
+      font-size: 0.87rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      margin: 0;
+      background: #07111c;
+      border: 1px solid #203a55;
+      border-radius: 10px;
+      padding: 12px;
+      max-height: 460px;
+      overflow: auto;
+    }
+
+    .inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .pill {
+      border: 1px solid #294763;
+      background: #0a1623;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 0.8rem;
+      color: #c6dbf2;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <div>
+        <h1>SQL Query Debug Agent</h1>
+        <p class="muted">Interactive UI for OpenEnv endpoints on this Space. Reset a task, submit SQL fixes, inspect reward and episode state.</p>
+      </div>
+      <div class="badge">FastAPI + OpenEnv</div>
+    </section>
+
+    <section class="grid">
+      <article class="card stack">
+        <h2>Run Episode</h2>
+
+        <div class="row split">
+          <div>
+            <label for="task">Task</label>
+            <select id="task">
+              <option value="active_customers_last_90_days">active_customers_last_90_days</option>
+              <option value="support_ticket_backlog_by_priority">support_ticket_backlog_by_priority</option>
+              <option value="monthly_subscription_margin">monthly_subscription_margin</option>
+              <option value="churn_risk_accounts_with_refunds">churn_risk_accounts_with_refunds</option>
+            </select>
+          </div>
+          <button id="btnReset">Reset</button>
+          <button id="btnState" class="ghost">Refresh State</button>
+        </div>
+
+        <div class="row">
+          <label for="query">Fixed Query</label>
+          <textarea id="query" spellcheck="false" placeholder="Write the corrected SQL query here."></textarea>
+        </div>
+
+        <div class="inline">
+          <button id="btnStep">Submit Step</button>
+          <button id="btnMetadata" class="ghost">Load Metadata</button>
+          <button id="btnSchema" class="ghost">Load Schema</button>
+          <button id="btnHealth" class="ghost">Health</button>
+        </div>
+
+        <div id="status" class="status warn">Waiting for action</div>
+
+        <div class="inline" id="summary"></div>
+      </article>
+
+      <article class="card stack">
+        <h2>Response</h2>
+        <pre id="output" class="pane">No response yet.</pre>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const output = document.getElementById("output");
+    const statusEl = document.getElementById("status");
+    const summaryEl = document.getElementById("summary");
+    const queryEl = document.getElementById("query");
+    const taskEl = document.getElementById("task");
+
+    function setStatus(msg, tone = "warn") {
+      statusEl.className = `status ${tone}`;
+      statusEl.textContent = msg;
+    }
+
+    function print(data) {
+      output.textContent = JSON.stringify(data, null, 2);
+    }
+
+    function showSummary(data) {
+      summaryEl.innerHTML = "";
+      if (!data || typeof data !== "object") {
+        return;
+      }
+
+      const chips = [];
+      if (Object.prototype.hasOwnProperty.call(data, "reward")) {
+        chips.push(`reward: ${data.reward}`);
+      }
+      if (Object.prototype.hasOwnProperty.call(data, "done")) {
+        chips.push(`done: ${data.done}`);
+      }
+      if (data.observation && Object.prototype.hasOwnProperty.call(data.observation, "attempts_remaining")) {
+        chips.push(`attempts_remaining: ${data.observation.attempts_remaining}`);
+      }
+      if (data.task_name) {
+        chips.push(`task: ${data.task_name}`);
+      }
+      if (data.initialized !== undefined) {
+        chips.push(`initialized: ${data.initialized}`);
+      }
+
+      for (const chipText of chips) {
+        const span = document.createElement("span");
+        span.className = "pill";
+        span.textContent = chipText;
+        summaryEl.appendChild(span);
+      }
+    }
+
+    async function callApi(path, method = "GET", payload = null) {
+      const opts = { method, headers: {} };
+      if (payload !== null) {
+        opts.headers["Content-Type"] = "application/json";
+        opts.body = JSON.stringify(payload);
+      }
+
+      const response = await fetch(path, opts);
+      const isJson = response.headers.get("content-type")?.includes("application/json");
+      const body = isJson ? await response.json() : await response.text();
+
+      if (!response.ok) {
+        const detail = typeof body === "string" ? body : JSON.stringify(body);
+        throw new Error(`${response.status} ${response.statusText}: ${detail}`);
+      }
+
+      return body;
+    }
+
+    function suggestQueryFromObservation(obs) {
+      if (!obs || !obs.buggy_query) {
+        return;
+      }
+      if (!queryEl.value.trim()) {
+        queryEl.value = obs.buggy_query;
+      }
+    }
+
+    async function onReset() {
+      setStatus("Resetting task...", "warn");
+      try {
+        const data = await callApi("/reset", "POST", { task_name: taskEl.value });
+        print(data);
+        showSummary(data);
+        suggestQueryFromObservation(data);
+        setStatus("Task reset complete", "ok");
+      } catch (err) {
+        print({ error: String(err) });
+        setStatus("Reset failed", "err");
+      }
+    }
+
+    async function onState() {
+      setStatus("Loading state...", "warn");
+      try {
+        const data = await callApi("/state");
+        print(data);
+        showSummary(data);
+        setStatus("State loaded", "ok");
+      } catch (err) {
+        print({ error: String(err) });
+        setStatus("State request failed", "err");
+      }
+    }
+
+    async function onStep() {
+      const q = queryEl.value.trim();
+      if (!q) {
+        setStatus("Enter a fixed query first", "err");
+        return;
+      }
+
+      setStatus("Submitting step...", "warn");
+      try {
+        const data = await callApi("/step", "POST", { fixed_query: q });
+        print(data);
+        showSummary(data);
+        setStatus("Step complete", data.reward === 1 ? "ok" : "warn");
+      } catch (err) {
+        print({ error: String(err) });
+        setStatus("Step failed", "err");
+      }
+    }
+
+    async function onMetadata() {
+      setStatus("Loading metadata...", "warn");
+      try {
+        const data = await callApi("/metadata");
+        print(data);
+        showSummary(data);
+        setStatus("Metadata loaded", "ok");
+      } catch (err) {
+        print({ error: String(err) });
+        setStatus("Metadata request failed", "err");
+      }
+    }
+
+    async function onSchema() {
+      setStatus("Loading schema...", "warn");
+      try {
+        const data = await callApi("/schema");
+        print(data);
+        showSummary(data);
+        setStatus("Schema loaded", "ok");
+      } catch (err) {
+        print({ error: String(err) });
+        setStatus("Schema request failed", "err");
+      }
+    }
+
+    async function onHealth() {
+      setStatus("Checking health...", "warn");
+      try {
+        const data = await callApi("/health");
+        print(data);
+        showSummary(data);
+        setStatus("Service healthy", "ok");
+      } catch (err) {
+        print({ error: String(err) });
+        setStatus("Health check failed", "err");
+      }
+    }
+
+    document.getElementById("btnReset").addEventListener("click", onReset);
+    document.getElementById("btnState").addEventListener("click", onState);
+    document.getElementById("btnStep").addEventListener("click", onStep);
+    document.getElementById("btnMetadata").addEventListener("click", onMetadata);
+    document.getElementById("btnSchema").addEventListener("click", onSchema);
+    document.getElementById("btnHealth").addEventListener("click", onHealth);
+
+    onHealth();
+    onState();
+  </script>
+</body>
+</html>
