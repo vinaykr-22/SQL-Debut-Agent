@@ -1,0 +1,32 @@
+name: sql-query-debug-agent-env
+version: "1.0.0"
+description: "OpenEnv environment where agents debug broken SQL queries"
+tags: ["openenv", "sql", "debugging", "real-world"]
+
+tasks:
+  - name: active_customers_last_90_days
+    difficulty: easy
+  - name: support_ticket_backlog_by_priority
+    difficulty: medium
+  - name: monthly_subscription_margin
+    difficulty: hard
+  - name: churn_risk_accounts_with_refunds
+    difficulty: hard
+
+action_space:
+  type: text
+  description: "A corrected SQL SELECT query string"
+
+observation_space:
+  type: object
+  fields:
+    - task_name: string
+    - buggy_query: string
+    - schema_sql: string
+    - expected_rows: list
+    - task_description: string
+    - attempts_remaining: integer
+    - done: boolean
+
+reward_range: [0.0, 1.0]
+max_steps: 5
