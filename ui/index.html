@@ -238,11 +238,12 @@
         </div>
 
         <div class="row">
-          <label for="query">Fixed Query</label>
-          <textarea id="query" spellcheck="false" placeholder="Write the corrected SQL query here."></textarea>
+          <label for="query">Buggy Query / Fixed Query</label>
+          <textarea id="query" spellcheck="false" placeholder="Paste buggy SQL, click Analyze & Auto-Fix, then submit step."></textarea>
         </div>
 
         <div class="inline">
+          <button id="btnAnalyze">Analyze & Auto-Fix</button>
           <button id="btnStep">Submit Step</button>
           <button id="btnMetadata" class="ghost">Load Metadata</button>
           <button id="btnSchema" class="ghost">Load Schema</button>
@@ -382,6 +383,38 @@
       }
     }
 
+    async function onAnalyze() {
+      const q = queryEl.value.trim();
+      if (!q) {
+        setStatus("Enter a buggy query first", "err");
+        return;
+      }
+
+      setStatus("Analyzing buggy query...", "warn");
+      try {
+        const data = await callApi("/analyze", "POST", {
+          task_name: taskEl.value,
+          buggy_query: q,
+        });
+
+        print(data);
+        showSummary(data);
+
+        if (data.corrected_query) {
+          queryEl.value = data.corrected_query;
+        }
+
+        if (data.recognized) {
+          setStatus("Bug identified and corrected query suggested", "ok");
+        } else {
+          setStatus("Best-match correction suggested (low confidence)", "warn");
+        }
+      } catch (err) {
+        print({ error: String(err) });
+        setStatus("Analyze failed", "err");
+      }
+    }
+
     async function onMetadata() {
       setStatus("Loading metadata...", "warn");
       try {
@@ -421,6 +454,7 @@
       }
     }
 
+    document.getElementById("btnAnalyze").addEventListener("click", onAnalyze);
     document.getElementById("btnReset").addEventListener("click", onReset);
     document.getElementById("btnState").addEventListener("click", onState);
     document.getElementById("btnStep").addEventListener("click", onStep);

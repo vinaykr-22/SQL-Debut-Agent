@@ -4,6 +4,8 @@ FastAPI server exposing SQLQueryDebugEnv over HTTP.
 
 from __future__ import annotations
 
+import re
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Optional
 
@@ -12,6 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from environment import SQLQueryDebugEnv, SQLDebugAction
+from tasks import TASKS, Task
 
 app = FastAPI(
     title="SQL Query Debug Agent Env",
@@ -29,6 +32,54 @@ class ResetRequest(BaseModel):
 
 class StepRequest(BaseModel):
     fixed_query: str
+
+
+class AnalyzeRequest(BaseModel):
+    buggy_query: str
+    task_name: Optional[str] = None
+
+
+BUG_SUMMARIES: dict[str, str] = {
+    "active_customers_last_90_days": (
+        "JOIN uses the wrong key (`orders.id` instead of `orders.customer_id`), "
+        "which drops valid customer-order matches."
+    ),
+    "support_ticket_backlog_by_priority": (
+        "Filter uses `status = 'closed'` but backlog should count `status = 'open'`."
+    ),
+    "monthly_subscription_margin": (
+        "JOIN compares month to cost (`s.month = c.infra_cost`) instead of month-to-month, "
+        "and the profitable-month HAVING filter is missing."
+    ),
+    "churn_risk_accounts_with_refunds": (
+        "Refund JOIN uses account_id against invoice_id, and the query misses the required "
+        "refund-ratio threshold filter."
+    ),
+}
+
+
+def _normalise_sql(sql: str) -> str:
+    return re.sub(r"\s+", " ", sql.strip().lower())
+
+
+def _task_similarity(input_query: str, task: Task) -> float:
+    return SequenceMatcher(
+        None,
+        _normalise_sql(input_query),
+        _normalise_sql(task.buggy_query),
+    ).ratio()
+
+
+def _pick_task_for_query(task_name: Optional[str], buggy_query: str) -> tuple[Task, float]:
+    if task_name:
+        if task_name not in TASKS:
+            raise ValueError(f"Unknown task '{task_name}'. Available: {list(TASKS.keys())}")
+        selected = TASKS[task_name]
+        return selected, _task_similarity(buggy_query, selected)
+
+    scored = [(_task_similarity(buggy_query, task), task) for task in TASKS.values()]
+    confidence, selected = max(scored, key=lambda x: x[0])
+    return selected, confidence
 
 
 @app.get("/")
@@ -118,6 +169,28 @@ def step(body: StepRequest) -> dict[str, Any]:
         "reward": result.reward,
         "done": result.done,
         "info": result.info,
+    }
+
+
+@app.post("/analyze")
+def analyze(body: AnalyzeRequest) -> dict[str, Any]:
+    if not body.buggy_query.strip():
+        raise HTTPException(status_code=400, detail="buggy_query must not be empty")
+
+    try:
+        task, confidence = _pick_task_for_query(body.task_name, body.buggy_query)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    recognized = confidence >= 0.45
+
+    return {
+        "recognized": recognized,
+        "matched_task": task.task_name,
+        "confidence": round(confidence, 4),
+        "bug_summary": BUG_SUMMARIES.get(task.task_name, "Bug detected in query logic."),
+        "corrected_query": task.correct_query,
+        "hint": task.task_description,
     }
 
 

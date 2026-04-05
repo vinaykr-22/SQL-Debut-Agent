@@ -98,6 +98,21 @@ http://localhost:7860/
 
 OpenEnv API endpoints remain unchanged at /health, /metadata, /schema, /reset, /step, and /state.
 
+The UI also includes an Analyze & Auto-Fix action:
+- paste a buggy query
+- get a bug summary
+- auto-fill the suggested corrected query
+
+Programmatic analysis endpoint:
+
+```bash
+POST /analyze
+{
+  "task_name": "active_customers_last_90_days",
+  "buggy_query": "SELECT ..."
+}
+```
+
 3. Test endpoints
 
 ```bash
