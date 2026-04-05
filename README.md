@@ -1,6 +1,6 @@
 ---
 title: SQL Query Debug Agent Env
-emoji: ""
+emoji: "🛠️"
 colorFrom: blue
 colorTo: green
 sdk: docker
