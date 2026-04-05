@@ -40,14 +40,23 @@ SYSTEM_PROMPT = (
     "Return only the corrected SQL query. No explanation."
 )
 
-FENCE_RE = re.compile(r"```(?:sql)?\\s*(.*?)```", re.DOTALL | re.IGNORECASE)
+FENCE_RE = re.compile(r"```(?:sql)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)
 
 
 def extract_sql(text: str) -> str:
-    match = FENCE_RE.search(text)
+    content = text.strip()
+
+    # Preferred path: capture fenced SQL blocks such as ```sql ... ```.
+    match = FENCE_RE.search(content)
     if match:
-        return match.group(1).strip()
-    return text.strip()
+        content = match.group(1).strip()
+
+    # Fallback cleanup for partially formatted responses.
+    content = content.replace("```", "").strip()
+    if content.lower().startswith("sql"):
+        content = content[3:].strip()
+
+    return content
 
 
 def build_user_prompt(obs: SQLDebugObservation) -> str:
